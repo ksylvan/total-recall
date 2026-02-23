@@ -191,6 +191,85 @@ The observer and reflector system prompts are in `prompts/`:
 
 Edit these to match your agent's personality and priorities.
 
+---
+
+## Dream Cycle
+
+The Dream Cycle is an optional nightly agent that runs after hours to consolidate `observations.md`. It archives stale items and adds semantic hooks so nothing useful is actually lost. Context stays lean; everything remains findable.
+
+**Status: Phase 1 live.**
+
+### What It Does
+
+- Classifies every observation by impact (critical / high / medium / low / minimal) and age
+- Archives items that have passed their relevance threshold
+- Adds a semantic hook for each archived item (specific keywords + archive reference)
+- Validates the result; rolls back automatically if something goes wrong
+
+### Setup
+
+1. **Run setup** — setup.sh creates the required Dream Cycle directories automatically.
+
+2. **Add the nightly cron job:**
+   ```
+   # Dream Cycle — nightly at 3am
+   0 3 * * * OPENCLAW_WORKSPACE=~/your-workspace bash ~/your-workspace/skills/total-recall/scripts/dream-cycle.sh preflight
+   ```
+
+3. **Configure your cron agent** — use `prompts/dream-cycle-prompt.md` as the system prompt for the nightly agent. Models: Claude Sonnet for the Dreamer (analysis + decisions), Gemini Flash for the Observer (cheap, fast).
+
+4. **Dry run first** — set `READ_ONLY_MODE=true` in your cron agent payload for the first 2-3 nights. Check `memory/dream-logs/` after each run to verify what it would have archived.
+
+5. **Go live** — switch to `READ_ONLY_MODE=false` once satisfied.
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DREAM_TOKEN_TARGET` | `8000` | Token target for observations.md after consolidation |
+| `DREAM_PHASE` | (unset = 1) | Feature phase: Phase 1 is live. Phase 2 adds type classification. |
+| `READ_ONLY_MODE` | `false` | Set `true` for dry-run analysis without writes |
+
+### Results (3 Nights)
+
+| Night | Mode | Before | After | Reduction | Archived |
+|-------|------|--------|-------|-----------|----------|
+| Night 1 | Dry run | 9,445 tokens | 8,309 tokens | 12% | 53 items |
+| Night 2 | Dry run | 16,900 tokens | 6,800 tokens | 60% | 248 items |
+| Night 3 | Live | 11,688 tokens | 2,930 tokens | 75% | 15 items, 0 false archives |
+
+Cost per run: ~$0.003.
+
+### Files
+
+| File | Description |
+|------|-------------|
+| `scripts/dream-cycle.sh` | Shell helper: preflight, archive, update-observations, write-log, write-metrics, validate, rollback |
+| `prompts/dream-cycle-prompt.md` | Agent prompt for the nightly Dream Cycle run |
+| `dream-cycle/README.md` | Dream Cycle quick reference |
+| `schemas/observation-format.md` | Extended observation format for Phase 2 type classification |
+
+### Directories Created
+
+```
+memory/
+  archive/
+    observations/        # Archived items (one .md file per night)
+  dream-logs/            # Nightly run reports
+  .dream-backups/        # Pre-run safety backups
+research/
+  dream-cycle-metrics/
+    daily/               # JSON metrics per night
+```
+
+### Phase 2 Preview
+
+Phase 2 adds a type classification system (7 types: fact, preference, goal, habit, event, rule, context) with per-type TTL decay. This allows smarter archiving: goals and rules are preserved much longer than event summaries. See `schemas/observation-format.md` for the full schema.
+
+Set `DREAM_PHASE=2` in your cron payload to enable Phase 2 behaviour.
+
+---
+
 ## Inspired By
 
 This system is inspired by how human memory works during sleep — the hippocampus (observer) captures experiences, and during sleep consolidation (reflector), important memories are strengthened while noise is discarded.

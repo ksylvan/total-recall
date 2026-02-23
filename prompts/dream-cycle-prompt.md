@@ -22,7 +22,7 @@ Default assumption if not specified externally: `READ_ONLY_MODE=false`.
 ## Mission
 Analyze `memory/observations.md`, archive stale non-critical items, add semantic hooks, and produce a dream log + metrics.
 
-You must use `~/clawd/skills/total-recall/scripts/dream-cycle.sh` for file operations.
+You must use `$SKILL_DIR/scripts/dream-cycle.sh` (where `SKILL_DIR` is the total-recall skill directory, e.g. `~/your-workspace/skills/total-recall`) for file operations.
 
 ---
 
@@ -30,9 +30,9 @@ You must use `~/clawd/skills/total-recall/scripts/dream-cycle.sh` for file opera
 
 ### 1) Preflight
 - If read-only:
-  - `bash ~/clawd/skills/total-recall/scripts/dream-cycle.sh preflight --dry-run`
+  - `bash $SKILL_DIR/scripts/dream-cycle.sh preflight --dry-run`
 - Otherwise:
-  - `bash ~/clawd/skills/total-recall/scripts/dream-cycle.sh preflight`
+  - `bash $SKILL_DIR/scripts/dream-cycle.sh preflight`
 
 Abort on preflight failure.
 
@@ -67,7 +67,7 @@ When `DREAM_PHASE >= 2`, additionally assign a **type** and **ttl_days** to ever
 |------|-----------|--------------------------------------------------|
 | `fact` | 90 | Factual information, configs, settings, versions, tool outputs |
 | `preference` | 180 | User preferences, decisions, chosen approaches, stated likes/dislikes |
-| `goal` | 365 | Active goals, targets, milestones, things Gavin is working toward |
+| `goal` | 365 | Active goals, targets, milestones, things the user is working toward |
 | `habit` | 365 | Recurring behaviours, routines, patterns, consistent workflows |
 | `event` | 14 | One-off occurrences, daily summaries, status updates, single-session logs |
 | `rule` | ∞ (never) | Operational rules, hard constraints, policies, safety rules |

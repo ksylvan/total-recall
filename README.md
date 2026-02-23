@@ -48,10 +48,12 @@ See [SKILL.md](SKILL.md) for full documentation, configuration, and platform sup
 | `scripts/reflector-agent.sh` | Consolidates when observations grow large |
 | `scripts/session-recovery.sh` | Catches missed sessions on /new |
 | `scripts/observer-watcher.sh` | Reactive inotify trigger (Linux) |
+| `scripts/dream-cycle.sh` | Nightly memory consolidation helper (Dream Cycle) |
 | `scripts/setup.sh` | One-command setup (dirs, watcher service) |
 | `scripts/_compat.sh` | Cross-platform helpers (Linux + macOS) |
 | `prompts/` | LLM system prompts for observer + reflector |
-| `dream-cycle/` | Total Recall: Dream Cycle (coming soon) |
+| `prompts/dream-cycle-prompt.md` | Agent prompt for the nightly Dream Cycle run |
+| `dream-cycle/` | Dream Cycle documentation |
 
 ## Platform Support
 
@@ -64,17 +66,82 @@ See [SKILL.md](SKILL.md) for full documentation, configuration, and platform sup
 
 ~$0.05–0.15/month using Gemini 2.5 Flash via OpenRouter.
 
+---
+
 ## Total Recall: Dream Cycle
 
-The overnight autonomous self-improvement system — while you sleep, your agent reviews its own performance, identifies improvements, and executes fixes. Coming soon.
+The overnight memory consolidation system. While you sleep, an agent reviews `observations.md`, archives stale items, and adds semantic hooks so nothing useful is actually lost. It keeps your context lean without throwing anything away.
+
+Three nights of data:
+
+| Night | Mode | Before | After | Reduction | Archived |
+|-------|------|--------|-------|-----------|----------|
+| Night 1 | Dry run | 9,445 tokens | 8,309 tokens | 12% | 53 items |
+| Night 2 | Dry run | 16,900 tokens | 6,800 tokens | 60% | 248 items |
+| Night 3 | Live | 11,688 tokens | 2,930 tokens | 75% | 15 items, 0 false archives |
+
+Cost per run: ~$0.003. Models: Claude Sonnet (Dreamer) + Gemini Flash (Observer).
+
+### How the Dream Cycle Works
+
+Nine stages run in sequence each night:
+
+```
+Stage 1: Preflight + backup
+Stage 2: Read observations.md, favorites.md, today's daily file
+Stage 3: Classify each observation (critical / high / medium / low / minimal)
+Stage 4: Apply future-date protection (never archive reminders or deadlines)
+Stage 5: Decide archive set based on age + impact thresholds
+Stage 6: Write archive file (memory/archive/observations/YYYY-MM-DD.md)
+Stage 7: Add semantic hooks so archived items stay searchable
+Stage 8: Atomically update observations.md with retained items + hooks
+Stage 9: Validate token count, write dream log + metrics, rollback on failure
+```
+
+Nothing is deleted. Every archived item gets a semantic hook in `observations.md` pointing back to the archive file, so your agent can still find it.
+
+### Setup: Dream Cycle Cron
+
+The Dream Cycle runs as a nightly cron via OpenClaw. Add a cron job at 3am (or whenever you sleep):
+
+```
+# Dream Cycle — nightly at 3am
+0 3 * * * OPENCLAW_WORKSPACE=~/your-workspace bash ~/your-workspace/skills/total-recall/scripts/dream-cycle.sh preflight
+```
+
+The actual analysis is run by a sub-agent using the prompt in `prompts/dream-cycle-prompt.md`. See [SKILL.md](SKILL.md) for the full setup and model configuration.
+
+Start with `READ_ONLY_MODE=true` for the first few nights. Check the dream log in `memory/dream-logs/`. When you're happy with what it would archive, switch to write mode.
+
+### Dream Cycle Directories
+
+The Dream Cycle writes to:
+
+```
+memory/
+  archive/
+    observations/        # Archived items (one file per night)
+  dream-logs/            # Nightly run reports
+  .dream-backups/        # Pre-run backups of observations.md
+research/
+  dream-cycle-metrics/
+    daily/               # JSON metrics for each night
+```
+
+---
 
 ## Articles
 
 - [Your AI Has an Attention Problem](https://gavlahh.substack.com/p/your-ai-has-an-attention-problem) — How and why we built Total Recall
 - [I Published an AI Memory Fix. Then I Found the Hole.](https://gavlahh.substack.com/p/i-published-an-ai-memory-fix-then) — Finding and fixing our own blind spots
+- [Do Agents Dream of Electric Sheep? I Built One That Does.](https://gavlahh.substack.com/p/do-agents-dream) — The Dream Cycle: nightly memory consolidation with real numbers
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
 
 *"Get your ass to Mars." — Well, get your agent's memory to work.*
+
+---
+
+*v1.1.0*

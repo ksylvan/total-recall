@@ -65,7 +65,11 @@ fi
 echo ""
 echo "Creating directory structure..."
 mkdir -p "$MEMORY_DIR/observation-backups"
+mkdir -p "$MEMORY_DIR/archive/observations"
+mkdir -p "$MEMORY_DIR/dream-logs"
+mkdir -p "$MEMORY_DIR/.dream-backups"
 mkdir -p "$WORKSPACE/logs"
+mkdir -p "$WORKSPACE/research/dream-cycle-metrics/daily"
 echo "✅ Directories created"
 
 # --- Create initial observations file ---
@@ -135,6 +139,10 @@ echo "   */15 * * * * OPENCLAW_WORKSPACE=$WORKSPACE bash $SKILL_DIR/scripts/obse
 echo ""
 echo "   # Reflector — hourly check"
 echo "   0 * * * * OPENCLAW_WORKSPACE=$WORKSPACE bash $SKILL_DIR/scripts/reflector-agent.sh >> $WORKSPACE/logs/reflector.log 2>&1"
+echo ""
+echo "   # Dream Cycle — nightly (3am recommended; adjust to your timezone)"
+echo "   # Run a sub-agent with prompts/dream-cycle-prompt.md — see SKILL.md for full setup"
+echo "   # 0 3 * * * OPENCLAW_WORKSPACE=$WORKSPACE bash $SKILL_DIR/scripts/dream-cycle.sh preflight"
 echo ""
 echo "2. ADD SESSION RECOVERY to your agent's startup procedure:"
 echo "   bash $SKILL_DIR/scripts/session-recovery.sh"

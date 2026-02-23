@@ -1,7 +1,7 @@
 ## Session Start — Mandatory Context Load (add to your AGENTS.md)
 
 On EVERY new session (including /new, /reset, greeting messages), BEFORE answering:
-1. **Session Recovery Check** — Run `bash ~/clawd/scripts/session-recovery.sh` to capture any observations missed by the reactive watcher (5th layer of redundancy — catches gaps between `/new` and Observer runs)
+1. **Session Recovery Check** — Run `bash ~/your-workspace/skills/total-recall/scripts/session-recovery.sh` to capture any observations missed by the reactive watcher (5th layer of redundancy — catches gaps between `/new` and Observer runs)
 2. `memory/observations.md` — always load (auto-generated cross-session memory from Observer agent)
 3. `memory/favorites.md` — always load (critical facts, urgent items)
 4. `memory/YYYY-MM-DD.md` for TODAY — always read directly (not via search)
