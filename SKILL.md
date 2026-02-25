@@ -262,9 +262,50 @@ research/
     daily/               # JSON metrics per night
 ```
 
-### Phase 2 Preview
+### Phase 2+ Roadmap
 
-Phase 2 adds a type classification system (7 types: fact, preference, goal, habit, event, rule, context) with per-type TTL decay. This allows smarter archiving: goals and rules are preserved much longer than event summaries. See `schemas/observation-format.md` for the full schema.
+*Updated: 2026-02-25 — accelerated schedule, morning-review → immediate-live approach*
+
+**Key insight from research:** Agent capability to use retrieval tools matters more than the retrieval mechanism itself. Simple filesystem tools often beat fancy memory frameworks. This validates our markdown-based approach.
+
+**Accelerated rollout approach (as of 25 Feb):** Dry runs fire at 02:30. Gavin reviews in the morning. Approved packages go LIVE the same morning. Next package runs as dry run that same night. Full Phase 2 live by Saturday 28 Feb.
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| **Phase 1** | Archive & trim, semantic hooks | ✅ LIVE |
+| **Phase 2 — WP0** | Multi-hook generation (4-5 search phrasings per archive) | ✅ LIVE (25 Feb) |
+| **Phase 2 — WP0.5** | Confidence metadata (0.0-1.0 score + source attribution) | ✅ LIVE (25 Feb) |
+| **Phase 2 — WP3** | Chunking — compress related observations into single entries | 🔜 DRY RUN tonight (25 Feb) |
+| **Phase 2 — WP2** | Importance decay — Ebbinghaus curve per memory type | 🔜 DRY RUN Thu 26 Feb night |
+| **Phase 2 — WP4** | Pattern promotion pipeline — staging proposals for Gavin review | 🔜 DRY RUN Fri 27 Feb night |
+| **Full Phase 2** | All work packages live | 🎯 Target: Sat 28 Feb morning |
+| **Phase 3** | Contradiction detection, retrieval validation loop | Future |
+
+**Current rollout schedule:**
+
+| Night/Morning | What | Status |
+|---------------|------|--------|
+| Tue 24 night (02:30) | WP0 + WP0.5 dry run | ✅ DONE |
+| Wed 25 morning | Approved → WP0/WP0.5 LIVE | ✅ IN PROGRESS |
+| Wed 25 night (02:30) | WP3 chunking dry run | 🔜 Tonight |
+| Thu 26 morning | Review → WP3 LIVE if OK | 🔜 Pending |
+| Thu 26 night (02:30) | WP2 importance decay dry run | 🔜 Pending |
+| Fri 27 morning | Review → WP2 LIVE if OK | 🔜 Pending |
+| Fri 27 night (02:30) | WP4 pattern promotion dry run | 🔜 Pending |
+| Sat 28 morning | Review → Full Phase 2 LIVE | 🎯 Target |
+
+**Phase 2 work packages:**
+- **WP0 Multi-hook** — 4-5 alternative search phrasings per archived item (30-50% recall improvement)
+- **WP0.5 Confidence** — 0.0-1.0 score + source attribution (explicit/implicit/inference/weak/uncertain)
+- **WP3 Chunking** — compress 3+ related observations into a single entry with synthesised finding
+- **WP2 Importance decay** — 7 memory types (fact, preference, goal, habit, event, rule, context) with per-type TTL and daily decay
+- **WP4 Pattern promotion** — multi-day patterns → staged proposals in `memory/dream-staging/` for human approval
+
+**Phase 3 preview:**
+- **Contradiction detection** — NLI-based, flag conflicting facts
+- **Retrieval validation** — measure retrieval quality, not just archival accuracy
+
+See `research/dream-cycle-strategy.md` and `research/dream-cycle-phase2-scope.md` for full design docs.
 
 Set `DREAM_PHASE=2` in your cron payload to enable Phase 2 behaviour.
 
