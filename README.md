@@ -66,6 +66,51 @@ See [SKILL.md](SKILL.md) for full documentation, configuration, and platform sup
 
 ~$0.05–0.15/month using Gemini 2.5 Flash via OpenRouter.
 
+## LLM Provider Configuration
+
+Total Recall uses OpenAI-compatible chat completion APIs. You can switch providers without editing scripts.
+
+### Environment variables
+
+```bash
+LLM_BASE_URL="${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
+LLM_API_KEY="${LLM_API_KEY:-$OPENROUTER_API_KEY}"   # backward-compatible fallback
+LLM_MODEL="${LLM_MODEL:-google/gemini-2.5-flash}"
+```
+
+- `LLM_BASE_URL`: Base URL for your provider API (default: OpenRouter)
+- `LLM_API_KEY`: API key for your provider (defaults to `OPENROUTER_API_KEY` for backward compatibility)
+- `LLM_MODEL`: Model ID sent to the provider (default: `google/gemini-2.5-flash`)
+
+### Provider examples
+
+```bash
+# OpenRouter (default behavior)
+export OPENROUTER_API_KEY="your-openrouter-key"
+
+# Ollama (local)
+export LLM_BASE_URL="http://localhost:11434/v1"
+export LLM_API_KEY="ollama"            # any non-empty value
+export LLM_MODEL="llama3.1:8b"
+
+# LM Studio (local server)
+export LLM_BASE_URL="http://localhost:1234/v1"
+export LLM_API_KEY="lm-studio"         # any non-empty value
+export LLM_MODEL="local-model"
+
+# Together.ai
+export LLM_BASE_URL="https://api.together.xyz/v1"
+export LLM_API_KEY="your-together-key"
+export LLM_MODEL="meta-llama/Llama-3.3-70B-Instruct-Turbo"
+
+# Groq
+export LLM_BASE_URL="https://api.groq.com/openai/v1"
+export LLM_API_KEY="your-groq-key"
+export LLM_MODEL="llama-3.3-70b-versatile"
+```
+
+`OPENROUTER_API_KEY` remains supported for existing setups.
+
 ---
 
 ## Total Recall: Dream Cycle

@@ -48,6 +48,7 @@ require_file() {
 
 ensure_dirs() {
   mkdir -p "$ARCHIVE_DIR" "$DREAM_LOG_DIR" "$BACKUP_DIR" "$METRICS_DIR"
+  mkdir -p "$MEMORY_DIR/archive/chunks"
 }
 
 atomic_write() {
@@ -156,6 +157,109 @@ cmd_archive() {
   mv "$tmp" "$archive_path"
 
   info "{\"status\":\"ok\",\"command\":\"archive\",\"file\":\"$archive_file\"}"
+}
+
+cmd_chunk() {
+  local chunk_file="${1:-}"
+  local json_arg="${2:-}"
+
+  [ -n "$chunk_file" ] || { err "Usage: dream-cycle.sh chunk <chunk-file> <json-data?>"; exit 1; }
+  ensure_dirs
+
+  local chunk_path="$OPENCLAW_WORKSPACE/$chunk_file"
+  mkdir -p "$(dirname "$chunk_path")"
+
+  local payload
+  payload="$(json_input_or_arg "$json_arg")"
+
+  if [ -z "$(printf '%s' "$payload" | tr -d '[:space:]')" ]; then
+    err "Chunk payload is empty"
+    exit 1
+  fi
+
+  printf '%s\n' "$payload" | jq -e . >/dev/null 2>&1 || {
+    err "Chunk payload is not valid JSON"
+    exit 1
+  }
+
+  local missing_fields=""
+  local field
+  for field in id topic date_range_start date_range_end confidence source_ids finding; do
+    if ! printf '%s\n' "$payload" | jq -e --arg f "$field" 'has($f) and .[$f] != null' >/dev/null 2>&1; then
+      missing_fields+=" $field"
+    fi
+  done
+
+  if [ -n "$missing_fields" ]; then
+    err "Chunk payload missing required fields:${missing_fields}"
+    exit 1
+  fi
+
+  printf '%s\n' "$payload" | jq -e '
+    (.id | type == "string" and length > 0) and
+    (.topic | type == "string" and length > 0) and
+    (.date_range_start | type == "string" and length > 0) and
+    (.date_range_end | type == "string" and length > 0) and
+    (.finding | type == "string" and length > 0)
+  ' >/dev/null 2>&1 || {
+    err "Chunk payload has invalid string fields (id/topic/date_range_start/date_range_end/finding must be non-empty strings)"
+    exit 1
+  }
+
+  printf '%s\n' "$payload" | jq -e '.source_ids | type == "array"' >/dev/null 2>&1 || {
+    err "Chunk payload field source_ids must be an array"
+    exit 1
+  }
+
+  printf '%s\n' "$payload" | jq -e '.source_ids | length > 0' >/dev/null 2>&1 || {
+    err "Chunk payload field source_ids must contain at least one source id"
+    exit 1
+  }
+
+  printf '%s\n' "$payload" | jq -e '.source_ids | all(.[]; (type == "string" and length > 0))' >/dev/null 2>&1 || {
+    err "Chunk payload field source_ids must contain only non-empty string ids"
+    exit 1
+  }
+
+  printf '%s\n' "$payload" | jq -e '.confidence | IN("tentative", "established", "single-source")' >/dev/null 2>&1 || {
+    err "Chunk payload field confidence must be one of: tentative, established, single-source"
+    exit 1
+  }
+
+  local chunk_entry
+  chunk_entry="$(printf '%s\n' "$payload" | jq -r '
+    "## \(.id)",
+    "**Topic**: \(.topic)",
+    "**Date range**: \(.date_range_start) → \(.date_range_end)",
+    "**Confidence**: \(.confidence)",
+    "**Source IDs**: \(.source_ids | join(", "))",
+    "**Source archive**: archive/observations/" + (.date_range_end | tostring) + ".md",
+    "",
+    "### Consolidated Finding",
+    .finding,
+    "",
+    "---",
+    ""
+  ')"
+
+  {
+    if [ -f "$chunk_path" ]; then
+      cat "$chunk_path"
+      [ -s "$chunk_path" ] && printf '\n'
+      printf '%s' "$chunk_entry"
+    else
+      local today
+      today="$(ISO_DATE_UTC)"
+      echo "# Chunked Observations — $today"
+      echo "Chunked by Dream Cycle Phase 2 (Wisdom Builder)."
+      echo
+      echo "---"
+      echo
+      printf '%s' "$chunk_entry"
+    fi
+  } | atomic_write "$chunk_path"
+
+  info "{\"status\":\"ok\",\"command\":\"chunk\",\"file\":\"$chunk_file\"}"
 }
 
 cmd_update_observations() {
@@ -335,6 +439,7 @@ usage() {
 Usage:
   dream-cycle.sh preflight [--dry-run]
   dream-cycle.sh archive <archive-file> <json-data?>
+  dream-cycle.sh chunk <chunk-file> <json-data?>
   dream-cycle.sh update-observations <new-observations-file>
   dream-cycle.sh write-log <log-file> <json-data?>
   dream-cycle.sh write-metrics <json-file> <json-data?>
@@ -357,6 +462,10 @@ main() {
     archive)
       shift
       cmd_archive "$@"
+      ;;
+    chunk)
+      shift
+      cmd_chunk "$@"
       ;;
     update-observations)
       shift

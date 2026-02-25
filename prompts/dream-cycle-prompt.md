@@ -86,7 +86,31 @@ When `DREAM_PHASE >= 2`, additionally assign a **type** and **ttl_days** to ever
 
 **Classification discipline:** Every observation must resolve to exactly one of the 7 types. When uncertain between two types, prefer the one with the longer TTL (err on the side of retention). Do not create new types.
 
-### 3b) Routine-Duplicate Collapse (Night 3 tuning)
+#### 3b) Confidence & Source Scoring — DREAM_PHASE >= 2 only
+> **Skip this subsection if `DREAM_PHASE < 2` or `DREAM_PHASE` is not set.**
+
+When `DREAM_PHASE >= 2`, assign a **confidence score** (0.0-1.0) and **source type** to every observation:
+
+| Source Type | Confidence Range | When to assign |
+|-------------|-----------------|----------------|
+| `explicit` | 0.90-1.00 | User directly stated ("I want...", "I prefer...", "Always do X") |
+| `implicit` | 0.70-0.89 | Strong signal from repeated behaviour or consistent pattern |
+| `inference` | 0.50-0.69 | Agent inferred from context, not directly stated |
+| `weak` | 0.30-0.49 | Single occurrence, might be situational |
+| `uncertain` | 0.10-0.29 | Guessed, unclear, or contradicted by other observations |
+
+**Confidence influences archival:**
+- High confidence (>0.7): Preserve longer, these are reliable memories
+- Low confidence (<0.3): Archive sooner, flag in dream log for review
+- Contradictions: If two observations conflict, flag both and preserve the higher-confidence one
+
+**Metadata format:** Add confidence/source as HTML comment on first line of observation section:
+```markdown
+<!-- dc:confidence=0.85 dc:source=explicit -->
+🔴 User stated they prefer voice replies over text for important updates.
+```
+
+### 3c) Routine-Duplicate Collapse (Night 3 tuning)
 Apply this aggressively for repetitive operational noise:
 - If an item is a repeated operational marker (cron success, "no changes", sync complete, routine status ping), treat as `minimal` unless it contains a novel decision/error.
 - Collapse duplicate runs of the same event key into one retained summary per day. Example keys:
@@ -101,6 +125,54 @@ Apply this aggressively for repetitive operational noise:
 ### 4) Future-Date Protection (Hard Rule)
 If an item includes a **future date** (reminder, deadline, scheduled event), it is **never archived**, regardless of impact/age.
 Only consider archiving it after that date passes.
+
+### 4b) Chunk Related Observations — DREAM_PHASE >= 2 only
+> **Skip this entire section if `DREAM_PHASE < 2` or `DREAM_PHASE` is not set.**
+
+When `DREAM_PHASE >= 2`, scan for clusters of 3+ observations about the same topic. Compress each cluster into a single chunk entry.
+
+**Clustering criteria (must share at least one):**
+- Same specific technology/tool (e.g., "Mac Studio browser", "Fitbit API", "Notion sync")
+- Same person or family member context
+- Same recurring problem pattern
+- Same policy domain (e.g., "model selection", "voice messages")
+
+**Minimum cluster size:** 3 observations. Never chunk fewer than 3 items.
+
+**Chunk quality rules (CRITICAL):**
+- Each chunk MUST name the specific technology/person/policy
+- NEVER write generic summaries like "Operational pattern" or "Various items"
+- Preserve all key named entities from source observations
+- Include date range and confidence level
+
+**Confidence levels:**
+- `established`: 5+ source observations across 3+ days
+- `tentative`: 3-4 source observations OR all from same day
+- `single-source`: Exactly 3 observations from one session (edge case)
+
+**Chunk hook format (left in observations.md after sources are archived):**
+```markdown
+- **[Topic] (chunked)**: [One-sentence finding]. Confidence: [level]. Date range: [start] → [end]. [ref: archive/chunks/YYYY-MM-DD.md#CHUNK-ID]
+```
+
+**Execution:**
+1. Identify candidate clusters (scan all observations)
+2. For each valid cluster (3+ items):
+   a. Build chunk payload JSON
+      - `source_ids` MUST be an array of non-empty observation IDs from the cluster
+      - `source_ids` MUST include at least 3 IDs (one per clustered observation)
+      - `id` format: `CHUNK-YYYYMMDD-NNN`
+   b. Write chunk: `dream-cycle.sh chunk memory/archive/chunks/YYYY-MM-DD.md '{"id":"CHUNK-...","topic":"...","date_range_start":"...","date_range_end":"...","confidence":"...","source_ids":["..."],"finding":"..."}'`
+      - The chunk file is cumulative for the day; each call appends a new chunk entry
+   c. Archive source observations (they move to the chunk archive)
+   d. Add chunk hook to observations.md
+3. Report: "Chunked X observations into Y chunks"
+
+**Do NOT chunk:**
+- Items with `type: rule` or `type: goal` (unless explicitly resolved/superseded)
+- Items with future dates
+- Items flagged for review
+- Conflicting observations where the contradiction is not yet resolved
 
 ### 5) Decide Archive Set
 Only archive items that pass thresholds and are not protected.
@@ -151,6 +223,41 @@ Hook quality (CRITICAL — Night 1 lesson):
 - topic + outcome present
 - valid archive reference path
 - concise but specific text
+
+#### 7a) Multi-Hook Generation — DREAM_PHASE >= 2 only
+> **Skip this subsection if `DREAM_PHASE < 2` or `DREAM_PHASE` is not set.**
+
+When `DREAM_PHASE >= 2`, generate **4-5 alternative search hooks** for each archived item. This addresses vocabulary mismatch: if a future search uses different words than the original hook, the memory should still be findable.
+
+**Multi-hook rules:**
+1. Primary hook uses the exact terminology from the observation
+2. Alternative hooks use synonyms, related terms, problem descriptions, and solution descriptions
+3. At least one alternative should describe the *problem* the observation addresses
+4. At least one alternative should describe the *outcome* or *solution*
+5. Alternatives must be genuinely different vocabulary, not just word reordering
+
+**Archive format with multi-hooks:**
+```markdown
+## OBS-20260224-001
+**Archived**: 2026-02-24 02:31 UTC
+**Impact**: 3.2 (low)
+**Type**: event
+**Confidence**: 0.75 (implicit)
+**Hooks**:
+- local TTS voice cloning Mac Studio (primary)
+- text to speech Will Wheaton voice
+- voice reply audio generation
+- Qwen3-TTS mlx setup
+- voice message synthesis local
+
+[Original observation text...]
+```
+
+**Hook vocabulary guidance:**
+- Technical → Colloquial: "TTS" → "voice", "OAuth" → "login", "cron" → "scheduled task"
+- Solution → Problem: "fixed auth" → "login failed", "token refresh" → "session expired"
+- Specific → General: "Charlotte audiobook" → "daughter audio", "Mac Studio browser" → "desktop browser"
+- Action → State: "updated config" → "config changed", "killed cron" → "cron disabled"
 
 ### 8) Apply Writes by Mode
 
@@ -222,7 +329,7 @@ Write metrics JSON exactly with fields:
 
 ## Constraints
 - No edits to AGENTS/MEMORY/TOOLS/SOUL policy files.
-- No pattern promotion/chunking in Phase 1.
+- No pattern promotion in Phase 1.
 - Use atomic write flow via script subcommands.
 - If uncertain about a borderline item, keep it active and note in `Flagged for Review`.
 

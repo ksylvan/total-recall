@@ -2,6 +2,22 @@
 
 All notable changes to Total Recall are documented here.
 
+## [1.2.0] - 2026-02-25
+
+### Added
+- Configurable LLM provider support via environment variables
+  - `LLM_BASE_URL` - API endpoint (default: OpenRouter)
+  - `LLM_API_KEY` - API key (default: falls back to OPENROUTER_API_KEY)
+  - `LLM_MODEL` - Model name (default: google/gemini-2.5-flash)
+- Works with any OpenAI-compatible API: Ollama, LM Studio, Together.ai, Groq, etc.
+
+### Changed
+- Observer and Reflector scripts now use configurable endpoints instead of hardcoded OpenRouter
+
+### Experimental (not yet production-tested)
+- Dream Cycle Phase 2 chunking infrastructure (`cmd_chunk`, Stage 4b prompt)
+- Will be promoted to stable after validation passes
+
 ## [v1.1.0] — 2026-02-23
 
 ### Added

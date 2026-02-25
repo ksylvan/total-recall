@@ -12,7 +12,13 @@ source "$SKILL_DIR/scripts/_compat.sh"
 WORKSPACE="${OPENCLAW_WORKSPACE:-$(cd "$SKILL_DIR/../.." && pwd)}"
 MEMORY_DIR="${MEMORY_DIR:-$WORKSPACE/memory}"
 SESSIONS_DIR="${SESSIONS_DIR:-$HOME/.openclaw/agents/main/sessions}"
-OBSERVER_MODEL="${OBSERVER_MODEL:-google/gemini-2.5-flash}"
+
+# LLM provider configuration (OpenAI-compatible APIs)
+LLM_BASE_URL="${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
+LLM_API_KEY="${LLM_API_KEY:-${OPENROUTER_API_KEY:-}}"
+LLM_MODEL="${LLM_MODEL:-google/gemini-2.5-flash}"
+
+OBSERVER_MODEL="${OBSERVER_MODEL:-$LLM_MODEL}"
 OBSERVER_FALLBACK_MODEL="${OBSERVER_FALLBACK_MODEL:-google/gemini-2.0-flash-001}"
 OBSERVER_LOOKBACK_MIN="${OBSERVER_LOOKBACK_MIN:-15}"
 OBSERVER_MORNING_LOOKBACK_MIN="${OBSERVER_MORNING_LOOKBACK_MIN:-480}"
@@ -28,10 +34,16 @@ LOCK_FILE="/tmp/total-recall-reflector-$(id -u).lock"
 # Source env if available (grep-guard: only export KEY=VALUE lines)
 if [ -f "$WORKSPACE/.env" ]; then
   set -a
-  # Only load OPENROUTER_API_KEY (minimal credential exposure)
-  eval "$(grep -E '^OPENROUTER_API_KEY=' "$WORKSPACE/.env" 2>/dev/null)" || true
+  # Load provider config + backward compatible OPENROUTER key
+  eval "$(grep -E '^(LLM_BASE_URL|LLM_API_KEY|LLM_MODEL|OPENROUTER_API_KEY)=' "$WORKSPACE/.env" 2>/dev/null)" || true
   set +a
 fi
+
+# Re-apply defaults after env load
+LLM_BASE_URL="${LLM_BASE_URL:-https://openrouter.ai/api/v1}"
+LLM_API_KEY="${LLM_API_KEY:-${OPENROUTER_API_KEY:-}}"
+LLM_MODEL="${LLM_MODEL:-google/gemini-2.5-flash}"
+OBSERVER_MODEL="${OBSERVER_MODEL:-$LLM_MODEL}"
 
 mkdir -p "$WORKSPACE/logs" "$MEMORY_DIR"
 
@@ -182,8 +194,8 @@ fi
 log "Found $LINE_COUNT lines to compress (hash: ${CURRENT_HASH:0:8})"
 
 # --- Validate API key ---
-if [ -z "${OPENROUTER_API_KEY:-}" ]; then
-  log "ERROR: OPENROUTER_API_KEY not set"
+if [ -z "${LLM_API_KEY:-}" ]; then
+  log "ERROR: LLM_API_KEY not set (or OPENROUTER_API_KEY for backward compatibility)"
   echo "ERROR_NO_API_KEY"
   exit 1
 fi
@@ -211,8 +223,8 @@ for ATTEMPT in 1 2; do
   MODEL="${MODELS[$((ATTEMPT-1))]}"
   ATTEMPT_PAYLOAD=$(echo "$PAYLOAD" | jq --arg m "$MODEL" '.model = $m')
   
-  RESPONSE=$(curl -s --max-time 60 "https://openrouter.ai/api/v1/chat/completions" \
-    -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+  RESPONSE=$(curl -s --max-time 60 "$LLM_BASE_URL/chat/completions" \
+    -H "Authorization: Bearer $LLM_API_KEY" \
     -H "Content-Type: application/json" \
     -d "$ATTEMPT_PAYLOAD" 2>/dev/null)
 

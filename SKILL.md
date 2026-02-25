@@ -197,7 +197,7 @@ Edit these to match your agent's personality and priorities.
 
 The Dream Cycle is an optional nightly agent that runs after hours to consolidate `observations.md`. It archives stale items and adds semantic hooks so nothing useful is actually lost. Context stays lean; everything remains findable.
 
-**Status: Phase 1 live.**
+**Status: Phase 2 LIVE (WP0/WP0.5/WP1 as of 25 Feb). WP3 building; full Phase 2 target Sun 1 Mar.**
 
 ### What It Does
 
@@ -227,7 +227,7 @@ The Dream Cycle is an optional nightly agent that runs after hours to consolidat
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DREAM_TOKEN_TARGET` | `8000` | Token target for observations.md after consolidation |
-| `DREAM_PHASE` | (unset = 1) | Feature phase: Phase 1 is live. Phase 2 adds type classification. |
+| `DREAM_PHASE` | (unset = 1) | Feature phase: Phase 2 is live (WP0/WP0.5/WP1). Phase 2 adds multi-hook, confidence scoring, type classification. |
 | `READ_ONLY_MODE` | `false` | Set `true` for dry-run analysis without writes |
 
 ### Results (3 Nights)
@@ -268,31 +268,34 @@ research/
 
 **Key insight from research:** Agent capability to use retrieval tools matters more than the retrieval mechanism itself. Simple filesystem tools often beat fancy memory frameworks. This validates our markdown-based approach.
 
-**Accelerated rollout approach (as of 25 Feb):** Dry runs fire at 02:30. Gavin reviews in the morning. Approved packages go LIVE the same morning. Next package runs as dry run that same night. Full Phase 2 live by Saturday 28 Feb.
+**Accelerated rollout approach (as of 25 Feb):** Dry runs fire at 02:30. Gavin reviews in the morning. Approved packages go LIVE the same morning. Next package runs as dry run that same night. Full Phase 2 target: Sun 1 Mar 02:30.
 
 | Phase | Focus | Status |
 |-------|-------|--------|
 | **Phase 1** | Archive & trim, semantic hooks | ✅ LIVE |
 | **Phase 2 — WP0** | Multi-hook generation (4-5 search phrasings per archive) | ✅ LIVE (25 Feb) |
 | **Phase 2 — WP0.5** | Confidence metadata (0.0-1.0 score + source attribution) | ✅ LIVE (25 Feb) |
-| **Phase 2 — WP3** | Chunking — compress related observations into single entries | 🔜 DRY RUN tonight (25 Feb) |
-| **Phase 2 — WP2** | Importance decay — Ebbinghaus curve per memory type | 🔜 DRY RUN Thu 26 Feb night |
-| **Phase 2 — WP4** | Pattern promotion pipeline — staging proposals for Gavin review | 🔜 DRY RUN Fri 27 Feb night |
-| **Full Phase 2** | All work packages live | 🎯 Target: Sat 28 Feb morning |
+| **Phase 2 — WP1** | Type system — 7 memory types + TTL classification | ✅ LIVE (25 Feb) |
+| **Phase 2 — WP3** | Chunking — compress related observations into single entries | 🔨 BUILDING (25 Feb) → DRY RUN Thu 26 Feb 02:30 |
+| **Phase 2 — WP2** | Importance decay — Ebbinghaus curve per memory type | 🔜 DRY RUN Fri 27 Feb 02:30 |
+| **Phase 2 — WP4** | Pattern promotion pipeline — staging proposals for Gavin review | 🔜 DRY RUN Sat 28 Feb 02:30 |
+| **Full Phase 2** | All work packages live | 🎯 Target: Sun 1 Mar 02:30 |
 | **Phase 3** | Contradiction detection, retrieval validation loop | Future |
 
 **Current rollout schedule:**
 
 | Night/Morning | What | Status |
 |---------------|------|--------|
-| Tue 24 night (02:30) | WP0 + WP0.5 dry run | ✅ DONE |
-| Wed 25 morning | Approved → WP0/WP0.5 LIVE | ✅ IN PROGRESS |
-| Wed 25 night (02:30) | WP3 chunking dry run | 🔜 Tonight |
-| Thu 26 morning | Review → WP3 LIVE if OK | 🔜 Pending |
-| Thu 26 night (02:30) | WP2 importance decay dry run | 🔜 Pending |
-| Fri 27 morning | Review → WP2 LIVE if OK | 🔜 Pending |
-| Fri 27 night (02:30) | WP4 pattern promotion dry run | 🔜 Pending |
-| Sat 28 morning | Review → Full Phase 2 LIVE | 🎯 Target |
+| Tue 24 night (02:30) | WP0 + WP0.5 + WP1 dry run | ✅ DONE |
+| Wed 25 morning (07:01) | Approved → WP0/WP0.5/WP1 LIVE (66.1% reduction) | ✅ DONE |
+| Wed 25 day (07:30-10:00) | Build WP3 chunking (Codex) | 🔨 IN PROGRESS |
+| Thu 26 night (02:30) | WP3 chunking dry run | 🔜 Tonight |
+| Thu 26 morning | Review → WP3 LIVE if OK, build WP2 | 🔜 Pending |
+| Fri 27 night (02:30) | WP3 LIVE + WP2 importance decay dry run | 🔜 Pending |
+| Fri 27 morning | Review → WP2 LIVE if OK, build WP4 | 🔜 Pending |
+| Sat 28 night (02:30) | WP2 LIVE + WP4 pattern promotion dry run | 🔜 Pending |
+| Sat 28 morning | Review → WP4 flip LIVE | 🔜 Pending |
+| Sun 1 Mar (02:30) | 🎉 Full Phase 2 LIVE | 🎯 Target |
 
 **Phase 2 work packages:**
 - **WP0 Multi-hook** — 4-5 alternative search phrasings per archived item (30-50% recall improvement)
