@@ -28,7 +28,7 @@ ARCHIVE_DIR="$MEMORY_DIR/archive/observations"
 DREAM_LOG_DIR="$MEMORY_DIR/dream-logs"
 BACKUP_DIR="$MEMORY_DIR/.dream-backups"
 METRICS_DIR="$OPENCLAW_WORKSPACE/research/dream-cycle-metrics/daily"
-TOKEN_TARGET="${DREAM_TOKEN_TARGET:-8000}"
+TOKEN_TARGET="${DREAM_TOKEN_TARGET:-5000}"
 
 ISO_DATE_UTC() { date -u '+%Y-%m-%d'; }
 ISO_STAMP_UTC() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
@@ -379,6 +379,128 @@ cmd_write_metrics() {
   info "{\"status\":\"ok\",\"command\":\"write-metrics\",\"file\":\"$json_file\"}"
 }
 
+cmd_decay() {
+  require_file "$OBSERVATIONS_FILE"
+  ensure_dirs
+
+  local today
+  today="$(ISO_DATE_UTC)"
+
+  local decay_tmp="${OBSERVATIONS_FILE}.decay.tmp"
+  rm -f "$decay_tmp"
+
+  # Use python3 for reliable float arithmetic and date handling.
+  # On ANY parse error, python3 exits non-zero; original file is left untouched.
+  set +e
+  python3 - "$OBSERVATIONS_FILE" "$today" > "$decay_tmp" <<'PYEOF'
+import sys
+import re
+from datetime import date
+
+obs_file = sys.argv[1]
+today_str = sys.argv[2]
+
+# Decay rates per type (per day). Types not listed default to fact rate.
+DECAY_RATES = {
+    "event":      0.5,
+    "fact":       0.1,
+    "preference": 0.02,
+    "rule":       0.0,
+    "habit":      0.0,
+    "goal":       0.0,
+    "context":    0.1,
+}
+
+try:
+    today = date.fromisoformat(today_str)
+except ValueError as e:
+    print("ERROR: Cannot parse today's date '{}': {}".format(today_str, e), file=sys.stderr)
+    sys.exit(1)
+
+try:
+    with open(obs_file, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+except IOError as e:
+    print("ERROR: Cannot read observations file: {}".format(e), file=sys.stderr)
+    sys.exit(1)
+
+output = []
+changed = 0
+
+for lineno, line in enumerate(lines, 1):
+    stripped = line.rstrip('\n')
+
+    # Only process HTML comment metadata lines that contain dc: fields
+    if '<!--' in stripped and '-->' in stripped and 'dc:' in stripped:
+        type_m = re.search(r'\bdc:type=(\w+)\b', stripped)
+        imp_m  = re.search(r'\bdc:importance=([\d.]+)\b', stripped)
+        date_m = re.search(r'\bdc:date=(\d{4}-\d{2}-\d{2})\b', stripped)
+
+        # Only process lines that have all three decay-relevant fields
+        if type_m and imp_m and date_m:
+            obs_type = type_m.group(1)
+
+            try:
+                importance = float(imp_m.group(1))
+            except ValueError:
+                print("ERROR: Invalid importance value '{}' on line {}".format(imp_m.group(1), lineno), file=sys.stderr)
+                sys.exit(1)
+
+            try:
+                obs_date = date.fromisoformat(date_m.group(1))
+            except ValueError:
+                print("ERROR: Invalid date '{}' on line {}".format(date_m.group(1), lineno), file=sys.stderr)
+                sys.exit(1)
+
+            if obs_date > today:
+                # Future-dated observation: no decay yet
+                output.append(line)
+                continue
+
+            days_elapsed = (today - obs_date).days
+            # Unknown types fall back to fact decay rate
+            decay_rate = DECAY_RATES.get(obs_type, 0.1)
+            new_importance = importance - decay_rate * days_elapsed
+            # Clamp to [0.0, 10.0]
+            new_importance = max(0.0, min(10.0, new_importance))
+            new_importance = round(new_importance, 2)
+
+            if new_importance != importance:
+                new_line = re.sub(
+                    r'\bdc:importance=[\d.]+\b',
+                    'dc:importance={}'.format(new_importance),
+                    stripped
+                )
+                output.append(new_line + '\n')
+                changed += 1
+                continue
+
+    output.append(line)
+
+print("INFO: Decay complete — {} observations updated".format(changed), file=sys.stderr)
+sys.stdout.write(''.join(output))
+PYEOF
+  local py_exit=$?
+  set -e
+
+  if [ $py_exit -ne 0 ]; then
+    rm -f "$decay_tmp"
+    err "Decay calculation failed — observations.md unchanged"
+    exit 1
+  fi
+
+  if [ ! -s "$decay_tmp" ]; then
+    rm -f "$decay_tmp"
+    err "Decay produced empty output — observations.md unchanged"
+    exit 1
+  fi
+
+  # Atomic replace: use mv (temp file already written and validated)
+  mv "$decay_tmp" "$OBSERVATIONS_FILE"
+
+  info "{\"status\":\"ok\",\"command\":\"decay\",\"date\":\"$today\"}"
+}
+
 cmd_validate() {
   require_file "$OBSERVATIONS_FILE"
   ensure_dirs
@@ -387,9 +509,22 @@ cmd_validate() {
   tokens="$(token_count "$OBSERVATIONS_FILE")"
 
   local critical_hits=0
+  local high_importance_hits=0
   local today_archive="$ARCHIVE_DIR/$(ISO_DATE_UTC).md"
   if [ -f "$today_archive" ]; then
+    # Legacy backward-compat check: string label "critical" (Phase 1 archives)
     critical_hits="$(grep -Eci '^\*\*Impact\*\*: *(critical|Critical)$' "$today_archive" || true)"
+
+    # WP2 check: numeric importance >= 9.0 in archive **Impact** lines
+    high_importance_hits="$(awk '
+      /^\*\*Impact\*\*:/ {
+        val = $0
+        sub(/^\*\*Impact\*\*:[[:space:]]*/, "", val)
+        num = val + 0
+        if (val ~ /^[0-9]/ && num >= 9.0) count++
+      }
+      END { print count+0 }
+    ' "$today_archive" || echo "0")"
   fi
 
   local git_state
@@ -408,7 +543,14 @@ cmd_validate() {
     notes="critical archived items detected: $critical_hits"
   fi
 
-  info "{\"status\":\"ok\",\"command\":\"validate\",\"validation_passed\":$passed,\"tokens\":$tokens,\"token_target\":$TOKEN_TARGET,\"git_status_lines\":$git_state,\"critical_false_archives\":$critical_hits,\"notes\":\"$notes\"}"
+  if [ "$high_importance_hits" -gt 0 ]; then
+    passed=false
+    notes="${notes}; high-importance items (>=9.0) archived: $high_importance_hits"
+  fi
+
+  local total_false_archives=$(( critical_hits + high_importance_hits ))
+
+  info "{\"status\":\"ok\",\"command\":\"validate\",\"validation_passed\":$passed,\"tokens\":$tokens,\"token_target\":$TOKEN_TARGET,\"git_status_lines\":$git_state,\"critical_false_archives\":$total_false_archives,\"notes\":\"$notes\"}"
 
   if [ "$passed" != true ]; then
     exit 1
@@ -440,6 +582,7 @@ Usage:
   dream-cycle.sh preflight [--dry-run]
   dream-cycle.sh archive <archive-file> <json-data?>
   dream-cycle.sh chunk <chunk-file> <json-data?>
+  dream-cycle.sh decay
   dream-cycle.sh update-observations <new-observations-file>
   dream-cycle.sh write-log <log-file> <json-data?>
   dream-cycle.sh write-metrics <json-file> <json-data?>
@@ -449,6 +592,12 @@ Usage:
 Notes:
   - JSON payload can be passed as argument or piped via stdin.
   - Paths are workspace-relative.
+  - decay: applies per-type daily importance decay to observations.md.
+    Run before classification. Reads dc:type, dc:importance, dc:date metadata.
+    Types without metadata are left unchanged. Decay rates:
+      event -0.5/day | fact -0.1/day | preference -0.02/day
+      rule, habit, goal: 0 (no decay) | unknown types: -0.1/day (fact rate)
+  - DREAM_TOKEN_TARGET env var overrides the default token target (default: 5000).
 EOF
 }
 
@@ -466,6 +615,10 @@ main() {
     chunk)
       shift
       cmd_chunk "$@"
+      ;;
+    decay)
+      shift
+      cmd_decay "$@"
       ;;
     update-observations)
       shift

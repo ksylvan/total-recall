@@ -46,17 +46,40 @@ Optional context:
 - Yesterday’s daily file for tie-break context.
 
 ### 3) Classify Observations
+
+> **WP2 note:** If `DREAM_PHASE >= 2`, run `dream-cycle.sh decay` **before** classification to apply daily importance decay to existing scores in `observations.md`.
+
 For each observation section, classify:
-- **Impact**: `critical | high | medium | low | minimal`
-- **Age**: days since observation date (if unknown, flag)
+- **Importance score**: a float in `[0.0, 10.0]` (see rubric below)
+- **Age**: days since observation date (if unknown, flag as unknown)
 - **Current relevance**: still active vs resolved/superseded
 
-Use thresholds:
-- critical = never archive automatically
-- high = archive at >= 7 days
-- medium = archive at >= 2 days
-- low = archive at >= 1 day
-- minimal = archive immediately
+#### Importance Scoring Rubric (0.0–10.0)
+
+| Score range | Category | Typical signals |
+|-------------|----------|----------------|
+| 9.0–10.0 | **Critical** | Operational rules, active blockers, family safety, hard constraints |
+| 7.0–8.9 | **High** | High-impact decisions, active project state, financial data, key preferences |
+| 5.0–6.9 | **Medium** | Medium-impact events, useful context, recent but non-critical facts |
+| 3.0–4.9 | **Low** | Low-impact items, routine operational noise, older non-critical events |
+| 0.0–2.9 | **Minimal** | Duplicate, expired, superseded, or trivial entries |
+
+**Signal → score mapping (common cases):**
+- System failure or critical error → 9.0–10.0
+- User correction or policy update → 8.0–9.0
+- New capability or significant config change → 6.0–7.5
+- Preference expressed (single instance) → 5.0–6.0
+- Routine task completion → 1.0–3.0
+- Operational noise / duplicate / resolved → 0.0–1.5
+
+**Archiving thresholds by score:**
+- score ≥ 9.0 → **never archive automatically** (was "critical")
+- score 7.0–8.9 → archive at **≥ 7 days** old (was "high")
+- score 5.0–6.9 → archive at **≥ 2 days** old (was "medium")
+- score 3.0–4.9 → archive at **≥ 1 day** old (was "low")
+- score 0.0–2.9 → **archive immediately** (was "minimal")
+
+**Backward compatibility:** Observations without explicit `dc:importance` metadata default to score `5.0` for archiving decisions.
 
 #### 3a) Type Classification — DREAM_PHASE >= 2 only
 > **Skip this entire subsection if `DREAM_PHASE < 2` or `DREAM_PHASE` is not set. Phase 1 behaviour is unchanged.**
