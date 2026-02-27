@@ -20,6 +20,12 @@ When a message references a future or past date, include BOTH:
 - The absolute date: "2026-02-14 (Friday)"
 - The relative offset: "3 days from today"
 
+## Deduplication (CRITICAL)
+- If "Already Recorded" observations are provided, DO NOT repeat any of them
+- Even if the same events appear in the conversation, skip them if they're already recorded
+- Only output genuinely NEW observations not covered by existing entries
+- If all events were already recorded, output: NO_OBSERVATIONS
+
 ## Guidelines
 - Be DENSE — every word should carry information
 - Preserve specifics: exact numbers, names, file paths, error messages, URLs

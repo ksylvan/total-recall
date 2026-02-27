@@ -200,13 +200,24 @@ if [ -z "${LLM_API_KEY:-}" ]; then
   exit 1
 fi
 
-# --- Call LLM ---
+# --- Call LLM (with existing observations context for dedup) ---
 SYSTEM_PROMPT=$(cat "$OBSERVER_PROMPT")
 TODAY=$(date '+%Y-%m-%d')
 
+# Feed last 30 lines of existing observations so LLM avoids repeating them
+EXISTING_TAIL=""
+if [ -f "$OBSERVATIONS_FILE" ]; then
+  EXISTING_TAIL=$(tail -80 "$OBSERVATIONS_FILE" | grep -E '^\s*-\s*[🔴🟡🟢]' | tail -40)
+fi
+
+DEDUP_CONTEXT=""
+if [ -n "$EXISTING_TAIL" ]; then
+  DEDUP_CONTEXT="\n\n## Already Recorded (DO NOT repeat these — they are already in memory)\n$EXISTING_TAIL"
+fi
+
 PAYLOAD=$(jq -n \
   --arg system "$SYSTEM_PROMPT" \
-  --arg messages "Today is $TODAY. Compress these recent messages into observations:\n\n$RECENT_MESSAGES" \
+  --arg messages "Today is $TODAY. Compress these recent messages into observations:\n\n$RECENT_MESSAGES$DEDUP_CONTEXT" \
   '{
     model: "placeholder",
     messages: [
@@ -246,6 +257,37 @@ if [ -z "$OBSERVATION" ] || echo "$OBSERVATION" | grep -qi "NO_OBSERVATIONS"; th
   date +%s > "$MARKER_FILE"
   echo "NO_OBSERVATIONS"
   exit 0
+fi
+
+# --- Post-LLM dedup: remove lines whose key content already exists ---
+if [ -f "$OBSERVATIONS_FILE" ]; then
+  # Build fingerprint set from existing observations (first 60 chars of each bullet)
+  # Build fingerprints: strip bullets/emoji/timestamps/markdown, take first 40 chars
+  EXISTING_FP=$(grep -E '^\s*-\s*[🔴🟡🟢]' "$OBSERVATIONS_FILE" | sed 's/^[[:space:]]*-[[:space:]]*[🔴🟡🟢][[:space:]]*[0-9:]*[[:space:]]*//' | sed 's/\*\*//g' | cut -c1-40 | sort -u)
+
+  DEDUPED=""
+  while IFS= read -r line; do
+    if echo "$line" | grep -qE '^\s*-\s*[🔴🟡🟢]'; then
+      # Extract the content fingerprint (strip bullet, emoji, timestamp, markdown bold)
+      FP=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*[🔴🟡🟢][[:space:]]*[0-9:]*[[:space:]]*//' | sed 's/\*\*//g' | cut -c1-40)
+      if echo "$EXISTING_FP" | grep -qF "$FP"; then
+        log "Dedup: skipping duplicate line: ${FP:0:40}..."
+        continue
+      fi
+    fi
+    DEDUPED+="$line"$'\n'
+  done <<< "$OBSERVATION"
+
+  OBSERVATION=$(echo "$DEDUPED" | sed '/^$/N;/^\n$/d')
+
+  # If everything was deduped, nothing to write
+  if [ -z "$(echo "$OBSERVATION" | grep -E '[🔴🟡🟢]')" ]; then
+    log "All observations were duplicates — nothing new to write"
+    echo "$CURRENT_HASH" > "$HASH_FILE"
+    date +%s > "$MARKER_FILE"
+    echo "NO_OBSERVATIONS"
+    exit 0
+  fi
 fi
 
 # --- Append to observations file ---
