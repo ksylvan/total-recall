@@ -261,16 +261,22 @@ fi
 
 # --- Post-LLM dedup: remove lines whose key content already exists ---
 if [ -f "$OBSERVATIONS_FILE" ]; then
-  # Build fingerprint set from existing observations (first 60 chars of each bullet)
   # Build fingerprints: strip bullets/emoji/timestamps/markdown, take first 40 chars
-  EXISTING_FP=$(grep -E '^\s*-\s*[🔴🟡🟢]' "$OBSERVATIONS_FILE" | sed 's/^[[:space:]]*-[[:space:]]*[🔴🟡🟢][[:space:]]*[0-9:]*[[:space:]]*//' | sed 's/\*\*//g' | cut -c1-40 | sort -u)
+  # LC_ALL=C ensures cut operates on bytes consistently across locales
+  EXISTING_FP=$(grep -E '^\s*-\s*[🔴🟡🟢]' "$OBSERVATIONS_FILE" | sed 's/^[[:space:]]*-[[:space:]]*[🔴🟡🟢][[:space:]]*[0-9:]*[[:space:]]*//' | sed 's/\*\*//g' | LC_ALL=C cut -c1-40 | sort -u)
+
+  # Guard: if no existing fingerprints, skip dedup entirely (prevents empty grep matching everything)
+  if [ -z "$EXISTING_FP" ]; then
+    log "No existing observation fingerprints — skipping post-LLM dedup"
+  else
 
   DEDUPED=""
   while IFS= read -r line; do
     if echo "$line" | grep -qE '^\s*-\s*[🔴🟡🟢]'; then
       # Extract the content fingerprint (strip bullet, emoji, timestamp, markdown bold)
-      FP=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*[🔴🟡🟢][[:space:]]*[0-9:]*[[:space:]]*//' | sed 's/\*\*//g' | cut -c1-40)
-      if echo "$EXISTING_FP" | grep -qF "$FP"; then
+      FP=$(echo "$line" | sed 's/^[[:space:]]*-[[:space:]]*[🔴🟡🟢][[:space:]]*[0-9:]*[[:space:]]*//' | sed 's/\*\*//g' | LC_ALL=C cut -c1-40)
+      # Skip empty fingerprints (would match everything)
+      if [ -n "$FP" ] && echo "$EXISTING_FP" | grep -qF "$FP"; then
         log "Dedup: skipping duplicate line: ${FP:0:40}..."
         continue
       fi
@@ -288,6 +294,8 @@ if [ -f "$OBSERVATIONS_FILE" ]; then
     echo "NO_OBSERVATIONS"
     exit 0
   fi
+
+  fi # end of EXISTING_FP guard
 fi
 
 # --- Append to observations file ---
